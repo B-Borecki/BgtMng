@@ -10,15 +10,12 @@ class Budget:
     prev = dt.datetime.strptime(prev, '%d-%m-%Y').date()
     curr = dt.date.today()
 
-class Remuneration:
-    salary = con.cursor().execute("""SELECT * FROM SALARY;""").fetchall()
-    def add_salary(this, name, amount, payday):
-        this.salary.append((name, amount, payday))
-    def modify_budget(this, budget):
-        for s in this.salary:
-            payday = s[2]
-            amount = s[1]
-            name = s[0]
+class Recurring_payments:
+    def modify_budget(budget, pay_list):
+        for i in pay_list:
+            payday = i[2]
+            amount = i[1]
+            name = i[0]
             add_day = dt.timedelta(days=1)
             it = budget.prev + add_day
             while it <= budget.curr:
@@ -27,28 +24,32 @@ class Remuneration:
                     budget.history.append((name, amount, it.strftime("%Y-%m-%d"), budget.acc_balance))
                 it += add_day
 
+class Salary(Recurring_payments):
+    def __init__(self, budget):
+        self.budget = budget
+    salary = con.cursor().execute("""SELECT * FROM PAYMENTS WHERE category == 'SALARY';""").fetchall()
+    def add_salary(this, name, amount, payday):
+        this.salary.append((name, amount, 'SALARY', payday))
+    def modify_budget():
+        super().modify_budget(self.budget, self.salary)
 
-class Charges:
-    bills = con.cursor().execute("""SELECT * FROM BILLS;""").fetchall()
+class Bills(Recurring_payments):
+    def __init__(self, budget):
+        self.budget = budget
+    bills = con.cursor().execute("""SELECT * FROM PAYMENTS WHERE category == 'BILLS';""").fetchall()
     def add_bill(this, name, amount, payday):
-        this.bills.append((name, amount, payday))
-    def modify_budget(this, budget):
-        for b in this.bills:
-            payment_day = s[2]
-            amount = s[1]
-            name = s[0]
-            add_day = dt.timedelta(days=1)
-            it = budget.prev + add_day
-            while it <= budget.curr:
-                if ((it+add_day).day == 1 and payment_day > it.day) or it.day == payment_day:
-                    budget.acc_balance += s[1]
-                    budget.history.append((name, amount, it.strftime("%Y-%m-%d"), budget.acc_balance))SSS
-                it += add_day
+        this.bills.append((name, amount, 'BILLS', payday))
+    def modify_budget():
+        super().modify_budget(self.budget, self.bills)
 
 class Subscriptions:
-    subs
+    def __init__(self, budget):
+        self.budget = budget
+    subs = con.cursor().execute("""SELECT * FROM PAYMENTS WHERE category == 'SUBSCRIPTIONS';""").fetchall()
     def add_sub():
-        None
+       this.subs.append((name, amount, 'SUBSCRIPTIONS', payday))
+    def modify_budget():
+        super().modify_budget(self.budget, self.subs)
 
 class Payments:
     def reduce_budget(budget):

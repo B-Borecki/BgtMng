@@ -12,17 +12,23 @@ class Budget:
     prev = con.cursor().execute("SELECT date from DATES \
         WHERE name == 'previous_launch'").fetchall()[0][0]
     prev = dt.datetime.strptime(prev, "%d-%m-%Y").date()
-    curr = dt.datetime.strptime("15-07-2023", "%d-%m-%Y").date()
+    curr = dt.date.today()
     def add_to_db(self):
         con.cursor().execute(f"""UPDATE BUDGET SET amount = {self.acc_balance} WHERE name = 'budget';""")
+    butt = 0
     def budget_button(self, app):
         button_font_1 = font.Font(family='Arial', size=25)
         button_font_2 = font.Font(family='Arial', size=30, weight='bold')
         def show_bgt():
             bgt_button.configure(text=f"{self.acc_balance}", command=hide_bgt, font=button_font_2)
+            self.butt = 1
         def hide_bgt():
             bgt_button.configure(text="Show budget status", command=show_bgt, font=button_font_1)
-        bgt_button = Button(app, text = "Show budget status", font=button_font_1, command=show_bgt, height = 2, width=23, bd=2)
+            self.butt = 0
+        if self.butt == 0:
+            bgt_button = Button(app, text = "Show budget status", font=button_font_1, command=show_bgt, height = 2, width=23, bd=2)
+        else:
+            bgt_button = Button(app, text = f"{self.acc_balance}", font=button_font_2, command=hide_bgt, height = 2, width=23, bd=2)
         bgt_button.place(x = 13, y = 6,  height=60, width=403)
     history = con.cursor().execute("""SELECT * FROM HISTORY;""").fetchall()[::-1]
     def history_table(self, app):
@@ -45,29 +51,28 @@ class Budget:
 
 
 class Categories:
-    categories_limits = con.cursor().execute("""SELECT * FROM CATEGORIES;""").fetchall()
-    categories = [i[0] for i in categories_limits]
-    if con.cursor().execute(f"""SELECT SUM("limit") FROM CATEGORIES;""").fetchall()[0][0] == None:
-        savings = 0
-    else:
-        savings = int(con.cursor().execute(f"""SELECT SUM("limit") FROM CATEGORIES;""").fetchall()[0][0]) - int(con.cursor().execute(f"""SELECT SUM(amount) FROM BUDGET WHERE name != 'budget';""").fetchall()[0][0])
-    prev = con.cursor().execute("SELECT date from DATES \
-        WHERE name == 'previous_launch'").fetchall()[0][0]
-    prev = dt.datetime.strptime(prev, '%d-%m-%Y').date()
-    curr = dt.datetime.strptime("15-07-2023", "%d-%m-%Y").date()
-    actual = con.cursor().execute("SELECT * FROM BUDGET WHERE name != 'budget';").fetchall()
-    if prev.month != curr.month or prev.year != curr.year:
-        con.cursor().execute(f"""INSERT INTO CATEGORY_HISTORY(category, date, expense, "limit")
-        VALUES ('savings', '{prev.strftime("%m-%Y")}', {savings},'');""")
-        for i in range(len(actual)):
+    def __init__(self, budget):
+        self.bgt = budget
+        self.categories_limits = con.cursor().execute("""SELECT * FROM CATEGORIES;""").fetchall()
+        self.categories = [i[0] for i in self.categories_limits]
+        if con.cursor().execute(f"""SELECT SUM("limit") FROM CATEGORIES;""").fetchall()[0][0] == None:
+            self.savings = 0
+        else:
+            self.savings = int(con.cursor().execute(f"""SELECT SUM("limit") FROM CATEGORIES;""").fetchall()[0][0]) - int(con.cursor().execute(f"""SELECT SUM(amount) FROM BUDGET WHERE name != 'budget';""").fetchall()[0][0])
+        self.actual = con.cursor().execute("SELECT * FROM BUDGET WHERE name != 'budget';").fetchall()
+        if self.bgt.prev.month != self.bgt.curr.month or self.bgt.prev.year != self.bgt.curr.year:
             con.cursor().execute(f"""INSERT INTO CATEGORY_HISTORY(category, date, expense, "limit")
-            VALUES ('{actual[i][0]}', '{prev.strftime("%m-%Y")}',{actual[i][1]}, {categories_limits[i][1]});""")
-            actual[i] = (actual[i][0], 0)
-        con.cursor().execute(f"""INSERT INTO CATEGORY_HISTORY(category, date, expense, "limit")
-        VALUES ('', '', '','');""")
-        savings = 0
-        for i in range(len(actual)):
-            savings += categories_limits[i][1] - actual[i][1]
+            VALUES ('savings', '{self.bgt.prev.strftime("%m-%Y")}', {self.savings},'');""")
+            self.bgt.acc_balance += self.savings
+            for i in range(len(self.actual)):
+                con.cursor().execute(f"""INSERT INTO CATEGORY_HISTORY(category, date, expense, "limit")
+                VALUES ('{self.actual[i][0]}', '{self.bgt.prev.strftime("%m-%Y")}',{self.actual[i][1]}, {self.categories_limits[i][1]});""")
+                self.actual[i] = (self.actual[i][0], 0)
+            con.cursor().execute(f"""INSERT INTO CATEGORY_HISTORY(category, date, expense, "limit")
+            VALUES ('', '', '','');""")
+            self.savings = 0
+            for i in range(len(self.actual)):
+                self.savings += self.categories_limits[i][1] - self.actual[i][1]
 
 
 
@@ -189,9 +194,10 @@ class Transactions:
     def __init__(self, budget):
         self.budget = budget
 
-    def modify_budget(self, name, category, amount):
+    def modify_budget(self, name, category, amount, app):
         self.budget.acc_balance += amount
         self.budget.history = [((name, category, amount, self.budget.curr.strftime("%d-%m-%Y")))] + self.budget.history
+        self.budget.budget_button(app)
         con.cursor().execute(f"""INSERT INTO HISTORY(name, category, amount, date)
         VALUES ('{name}', '{category}', {amount}, '{self.budget.curr.strftime("%d-%m-%Y")}');""")
 
@@ -231,7 +237,7 @@ class Transactions:
                 if new_name == None or new_amount == None or new_category == "————————" or new_category == "Select category":
                     return 0
                 new_amount = new_sign * int(new_amount)
-                self.modify_budget(new_name, new_category, new_amount)
+                self.modify_budget(new_name, new_category, new_amount, app)
                 self.budget.history_table(app)
                 cat.savings += new_amount
                 for i in range (len(cat.actual)):
@@ -241,6 +247,7 @@ class Transactions:
                         break
                 con.cursor().execute(f"""UPDATE BUDGET SET amount = {new_amount} WHERE name = '{new_category}';""")
                 cat.category_table(app)
+
 
             add = Button(pay, text="Add payment", command=add).place(x=200, y=80)
         trans = Button(app, text="Payment", command=trans, height=2,width=15).place(x = 146, y = 680)
@@ -261,7 +268,7 @@ class BgtMng(Tk):
 if __name__ == "__main__":
     app = BgtMng()
     bgt = Budget()
-    cat = Categories()
+    cat = Categories(bgt)
     pay = Transactions(bgt)
     bgt.budget_button(app)
     bgt.history_table(app)
@@ -271,6 +278,7 @@ if __name__ == "__main__":
 
     app.mainloop()
 
+    bgt.add_to_db()
     con.cursor().execute(f"""UPDATE DATES SET date = '{bgt.curr.strftime("%d-%m-%Y")}' WHERE name = 'previous_launch';""")
     con.commit()
     con.close()

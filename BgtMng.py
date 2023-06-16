@@ -17,8 +17,8 @@ class Budget:
         con.cursor().execute(f"""UPDATE BUDGET SET amount = {self.acc_balance} WHERE name = 'budget';""")
     butt = 0
     def budget_button(self, app):
-        button_font_1 = font.Font(family='Arial', size=25)
-        button_font_2 = font.Font(family='Arial', size=30, weight='bold')
+        button_font_1 = font.Font(family='Arial', size=30)
+        button_font_2 = font.Font(family='Arial', size=37, weight='bold')
         def show_bgt():
             bgt_button.configure(text=f"{self.acc_balance}", command=hide_bgt, font=button_font_2)
             self.butt = 1
@@ -29,25 +29,28 @@ class Budget:
             bgt_button = Button(app, text = "Show budget status", font=button_font_1, command=show_bgt, height = 2, width=23, bd=2)
         else:
             bgt_button = Button(app, text = f"{self.acc_balance}", font=button_font_2, command=hide_bgt, height = 2, width=23, bd=2)
-        bgt_button.place(x = 13, y = 6,  height=60, width=403)
+        bgt_button.place(x = 10, y = 10,  height=85, width=589)
     history = con.cursor().execute("""SELECT * FROM HISTORY;""").fetchall()[::-1]
     def history_table(self, app):
-        history_table = ttk.Treeview(app, columns=("name", "category", "amount", "date"), show='headings', height=20)
-        history_table.column("name", width=100, minwidth=100, anchor=CENTER)
-        history_table.column("category", width=100, minwidth=100, anchor=CENTER)
-        history_table.column("amount", width=100, minwidth=100, anchor=CENTER)
-        history_table.column("date", width=100, minwidth=100, anchor=CENTER)
+        style = ttk.Style()
+        style.configure("Treeview.Heading", font=(None, 12))
+        style.configure("Treeview", font=("Helvetica bold", 11))
+        history_table = ttk.Treeview(app, columns=("name", "category", "amount", "date"), show='headings', height=28)
+        history_table.column("name", width=145, minwidth=145, anchor=CENTER)
+        history_table.column("category", width=145, minwidth=145, anchor=CENTER)
+        history_table.column("amount", width=145, minwidth=145, anchor=CENTER)
+        history_table.column("date", width=145, minwidth=145, anchor=CENTER)
         history_table.heading("name", text="name")
         history_table.heading("category", text="category")
         history_table.heading("amount", text="amount")
         history_table.heading("date", text="date")
         for record in self.history:
             history_table.insert('', END, values=record)
-        history_table.place(x = 14, y = 90)
+        history_table.place(x = 16, y = 140)
 
-        scrollbar = Scrollbar(app, orient=VERTICAL, command=history_table.yview, width = 15)
+        scrollbar = Scrollbar(app, orient=VERTICAL, command=history_table.yview, width = 16)
         history_table.configure(yscrollcommand=scrollbar.set)
-        scrollbar.place(x = -1, y = 90, height=420)
+        scrollbar.place(x = -1, y = 140, height=587)
 
 
 class Categories:
@@ -94,10 +97,10 @@ class Categories:
         self.categories.remove(name)
 
     def category_table(self, app):
-        category_table = ttk.Treeview(app, columns=("category", "expense", "limit"), show='headings', height=5)
-        category_table.column("category", width=125, minwidth=125, anchor=CENTER)
-        category_table.column("expense", width=125, minwidth=125, anchor=CENTER)
-        category_table.column("limit", width=125, minwidth=125, anchor=CENTER)
+        category_table = ttk.Treeview(app, columns=("category", "expense", "limit"), show='headings', height=6)
+        category_table.column("category", width=193, minwidth=193, anchor=CENTER)
+        category_table.column("expense", width=193, minwidth=193, anchor=CENTER)
+        category_table.column("limit", width=193, minwidth=193, anchor=CENTER)
         category_table.heading("category", text="category")
         category_table.heading("expense", text="monthly expense")
         category_table.heading("limit", text="limit")
@@ -105,31 +108,31 @@ class Categories:
         for record in self.actual:
             category_table.insert('', END, values=record + (self.categories_limits[i][1],))
             i+=1
-        category_table.place(x = 14, y = 540)
-        scrollbar2 = Scrollbar(app, orient=VERTICAL, command=category_table.yview, width = 15)
+        category_table.place(x = 16, y = 781)
+        scrollbar2 = Scrollbar(app, orient=VERTICAL, command=category_table.yview, width = 16)
         category_table.configure(yscrollcommand=scrollbar2.set)
-        scrollbar2.place(x = -1, y = 540, height=120)
-        savings_label = Label(app, text = f"savings:   {self.savings}", bg='#F5F5F5', width=53, anchor=W).place(x=15, y=660)
+        scrollbar2.place(x = -1, y = 781, height=145)
+        savings_label = Label(app, text = f"                 savings:                                     {self.savings}", font=("Helvetica bold", 11), bg='#F5F5F5', width=72, anchor=W).place(x=16, y=927)
 
     def categories_button(self, app):
         def modify_categories():
             mod = Toplevel()
             mod.title("Modify categories")
-            mod.geometry("500x100")
-            mod.maxsize(500, 100)
-            mod.minsize(500, 100)
+            mod.geometry("650x150")
+            mod.maxsize(650, 150)
+            mod.minsize(650, 150)
             canvas = Canvas(mod)
-            canvas.create_line(100, 0, 100, 120)
-            canvas.place(x=155, y = -5)
+            canvas.create_line(100, 0, 100, 200)
+            canvas.place(x=230, y = -5)
 
-            name = Entry(mod, width=17)
-            name.place(x = 100, y=5)
-            name_label = Label(mod, text="Category name:")
-            name_label.place(x = 1, y = 5)
-            limit = Entry(mod, width=17)
-            limit.place(x = 100, y = 35)
-            limit_label = Label(mod, text="Monthly limit:")
-            limit_label.place(x = 13, y = 35)
+            name = Entry(mod, width=20, font=(None, 10))
+            name.place(x = 125, y=25)
+            name_label = Label(mod, text="Category name:", font=("sans-serif", 11))
+            name_label.place(x = 3, y = 25)
+            limit = Entry(mod, width=20, font=(None, 10))
+            limit.place(x = 125, y = 65)
+            limit_label = Label(mod, text="Monthly limit:", font=("sans-serif", 11))
+            limit_label.place(x = 15, y = 65)
 
             def add_button():
                 new_name = name.get()
@@ -137,21 +140,27 @@ class Categories:
                 name.delete(0, END)
                 limit.delete(0, END)
                 if new_name in self.categories:
-                    return 0
-                self.add_category(new_name, new_limit)
+                    old_limit = self.categories_limits[self.categories.index(new_name)][1]
+                    self.categories_limits[self.categories.index(new_name)] = (new_name, new_limit)
+                    con.cursor().execute(f"""UPDATE CATEGORIES SET "limit" = {new_limit} WHERE name = '{new_name}';""")
+                    self.savings -= (old_limit - int(new_limit))
+                else:
+                    self.add_category(new_name, new_limit)
                 self.category_table(app)
                 del_menu()
 
 
-            add_button = Button(mod, text = "Add category", command=add_button)
-            add_button.place(x = 110, y = 62)
+            add_button = Button(mod, text = "Add category",  font=(None, 11), command=add_button, height=1,width=17)
+            add_button.place(x = 125, y = 100)
 
             def del_menu():
                 clicked = StringVar()
                 clicked.set("Select category")
                 menu = OptionMenu(mod, clicked, "—————————", *self.categories)
-                menu.config(width=17)
-                menu.place(x = 295, y = 50)
+                menu.config(width=20,  font=("Helvetica bold", 11))
+                menu.place(x = 390, y = 85)
+                menu_text = mod.nametowidget(menu.menuname)
+                menu_text.config(font=("TkDefaultFont", 11))
                 def del_button():
                     del_name = clicked.get()
                     if del_name == 'Select category' or del_name == "—————————":
@@ -159,11 +168,11 @@ class Categories:
                     self.del_category(del_name)
                     self.category_table(app)
                     del_menu()
-                del_button = Button(mod, text = "Delete category", command = del_button)
-                del_button.place(x = 315, y = 15)
+                del_button = Button(mod, text = "Delete category", command = del_button, font=(None, 11), height=1,width=17)
+                del_button.place(x =410, y = 40)
             del_menu()
-        categories_button = Button(app, text = "Modify categories", height=2,width=15, command=modify_categories)
-        categories_button.place(x = 14, y = 680)
+        categories_button = Button(app, text = "Modify categories", font=(None, 11), height=2,width=15, command=modify_categories)
+        categories_button.place(x = 15, y = 951)
 
 
 class Recurring_payment:
@@ -250,7 +259,7 @@ class Transactions:
 
 
             add = Button(pay, text="Add payment", command=add).place(x=200, y=80)
-        trans = Button(app, text="Payment", command=trans, height=2,width=15).place(x = 146, y = 680)
+        trans = Button(app, text="Payment", command=trans, font=(None, 11), height=2,width=15).place(x = 162, y = 951)
 
 
 class BgtMng(Tk):
@@ -260,10 +269,10 @@ class BgtMng(Tk):
         width=self.winfo_screenwidth()
         height= self.winfo_screenheight()
         self.geometry(f"{width}x{height}")
-        history_label = Label(self, text= "—————————————history——————————", font="Helvetica 12 italic")
-        history_label.place(x = -4, y = 68)
-        category_label = Label(self, text= "–—————————————category—————————", font="Helvetica 12 italic")
-        category_label.place(x = -10, y = 517)
+        history_label = Label(self, text= "—————————————history————————————————", font="Helvetica 15 italic")
+        history_label.place(x = -4, y = 110)
+        category_label = Label(self, text= "–—————————————category———————————————", font="Helvetica 15 italic")
+        category_label.place(x = -12, y = 750)
 
 if __name__ == "__main__":
     app = BgtMng()

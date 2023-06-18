@@ -12,7 +12,7 @@ class Budget:
     prev = con.cursor().execute("SELECT date from DATES \
         WHERE name == 'previous_launch'").fetchall()[0][0]
     prev = dt.datetime.strptime(prev, "%d-%m-%Y").date()
-    curr = dt.date.today()
+    curr =  dt.date.today()
     def add_to_db(self):
         con.cursor().execute(f"""UPDATE BUDGET SET amount = {self.acc_balance} WHERE name = 'budget';""")
     butt = 0
@@ -23,10 +23,10 @@ class Budget:
             bgt_button.configure(text=f"{self.acc_balance}", command=hide_bgt, font=button_font_2)
             self.butt = 1
         def hide_bgt():
-            bgt_button.configure(text="Show budget status", command=show_bgt, font=button_font_1)
+            bgt_button.configure(text="Show total budget status", command=show_bgt, font=button_font_1)
             self.butt = 0
         if self.butt == 0:
-            bgt_button = Button(app, text = "Show budget status", font=button_font_1, command=show_bgt, height = 2, width=23, bd=2)
+            bgt_button = Button(app, text = "Show total budget status", font=button_font_1, command=show_bgt, height = 2, width=23, bd=2)
         else:
             bgt_button = Button(app, text = f"{self.acc_balance}", font=button_font_2, command=hide_bgt, height = 2, width=23, bd=2)
         bgt_button.place(x = 10, y = 10,  height=85, width=589)
@@ -64,20 +64,23 @@ class Categories:
             self.savings = int(con.cursor().execute(f"""SELECT SUM("limit") FROM CATEGORIES;""").fetchall()[0][0]) - int(con.cursor().execute(f"""SELECT SUM(amount) FROM BUDGET WHERE name != 'budget';""").fetchall()[0][0])
         self.actual = con.cursor().execute("SELECT * FROM BUDGET WHERE name != 'budget';").fetchall()
         if self.bgt.prev.month != self.bgt.curr.month or self.bgt.prev.year != self.bgt.curr.year:
-            con.cursor().execute(f"""INSERT INTO CATEGORY_HISTORY(category, date, expense, "limit")
+            con.cursor().execute(f"""INSERT INTO STATISTICS(category, date, expense, "limit")
             VALUES ('savings', '{self.bgt.prev.strftime("%m-%Y")}', {self.savings},'');""")
-            self.bgt.acc_balance += self.savings
             for i in range(len(self.actual)):
-                con.cursor().execute(f"""INSERT INTO CATEGORY_HISTORY(category, date, expense, "limit")
+                con.cursor().execute(f"""INSERT INTO STATISTICS(category, date, expense, "limit")
                 VALUES ('{self.actual[i][0]}', '{self.bgt.prev.strftime("%m-%Y")}',{self.actual[i][1]}, {self.categories_limits[i][1]});""")
                 self.actual[i] = (self.actual[i][0], 0)
-            con.cursor().execute(f"""INSERT INTO CATEGORY_HISTORY(category, date, expense, "limit")
+            con.cursor().execute(f"""INSERT INTO STATISTICS(category, date, expense, "limit")
             VALUES ('', '', '','');""")
+            con.cursor().execute(f"""UPDATE BUDGET
+            SET amount=0 WHERE name!= 'budget';""")
+            self.actual = con.cursor().execute("SELECT * FROM BUDGET WHERE name != 'budget';").fetchall()
             self.savings = 0
+
             for i in range(len(self.actual)):
                 self.savings += self.categories_limits[i][1] - self.actual[i][1]
         self.stats = con.cursor().execute("SELECT * FROM STATISTICS;").fetchall()[2:-1][::-1]
-
+        self.monthly_budget = sum([i[1] for i in self.actual])
 
     def add_category(self, name, limit):
         con.cursor().execute(f"""INSERT INTO CATEGORIES(name, "limit")

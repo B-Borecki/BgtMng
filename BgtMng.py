@@ -76,7 +76,7 @@ class Categories:
             self.savings = 0
             for i in range(len(self.actual)):
                 self.savings += self.categories_limits[i][1] - self.actual[i][1]
-
+        self.stats = con.cursor().execute("SELECT * FROM STATISTICS;").fetchall()[2:-1][::-1]
 
 
     def add_category(self, name, limit):
@@ -108,11 +108,11 @@ class Categories:
         for record in self.actual:
             category_table.insert('', END, values=record + (self.categories_limits[i][1],))
             i+=1
-        category_table.place(x = 16, y = 781)
+        category_table.place(x = 16, y = 776)
         scrollbar2 = Scrollbar(app, orient=VERTICAL, command=category_table.yview, width = 16)
         category_table.configure(yscrollcommand=scrollbar2.set)
-        scrollbar2.place(x = -1, y = 781, height=145)
-        savings_label = Label(app, text = f"                 savings:                                     {self.savings}", font=("Helvetica bold", 11), bg='#F5F5F5', width=72, anchor=W).place(x=16, y=927)
+        scrollbar2.place(x = -1, y = 776, height=145)
+        savings_label = Label(app, text = f"                 savings:                                     {self.savings}", font=("Helvetica bold", 11), bg='#F5F5F5', width=72, anchor=W).place(x=16, y=922)
 
     def categories_button(self, app):
         def modify_categories():
@@ -169,11 +169,27 @@ class Categories:
                     self.category_table(app)
                     del_menu()
                 del_button = Button(mod, text = "Delete category", command = del_button, font=(None, 11), height=1,width=17)
-                del_button.place(x =410, y = 40)
+                del_button.place(x =410, y = 35)
             del_menu()
-        categories_button = Button(app, text = "Modify categories", font=(None, 11), height=2,width=15, command=modify_categories)
-        categories_button.place(x = 15, y = 951)
+        categories_button = Button(app, text = "Modify categories", font=(None, 12), height=2,width=15, command=modify_categories)
+        categories_button.place(x = 15, y = 947)
+    def statistics(self, app):
+        stats_table = ttk.Treeview(app, columns=("category", "month", "amount", "limit"), show='headings', height=38)
+        stats_table.column("category", width=145, minwidth=145, anchor=CENTER)
+        stats_table.column("month", width=145, minwidth=145, anchor=CENTER)
+        stats_table.column("amount", width=145, minwidth=145, anchor=CENTER)
+        stats_table.column("limit", width=145, minwidth=145, anchor=CENTER)
+        stats_table.heading("category", text="category")
+        stats_table.heading("month", text="month")
+        stats_table.heading("amount", text="amount")
+        stats_table.heading("limit", text="limit")
+        for record in self.stats:
+            stats_table.insert('', END, values=record)
+        stats_table.place(x = 750, y = 140)
 
+        scrollbar = Scrollbar(app, orient=VERTICAL, command=stats_table.yview, width = 16)
+        stats_table.configure(yscrollcommand=scrollbar.set)
+        scrollbar.place(x = 733, y = 140, height=788)
 
 class Recurring_payment:
     def __init__(self, category):
@@ -214,26 +230,28 @@ class Transactions:
         def trans():
             pay = Toplevel(app)
             pay.title("Add payment")
-            pay.geometry("500x115")
-            pay.maxsize(500, 115)
-            pay.minsize(500, 115)
-            name_label = Label(pay, text="Name:").place(x=16, y=20)
-            name = Entry(pay, width=17)
-            name.place(x = 60, y=20)
-            amount_label = Label(pay, text="Amount:").place(x=3, y=50)
-            amount = Entry(pay, width=17)
-            amount.place(x = 60, y=50)
+            pay.geometry("650x150")
+            pay.maxsize(650, 150)
+            pay.minsize(650, 150)
+            name_label = Label(pay, text="Name:", font=("sans-serif", 11)).place(x=18, y=30)
+            name = Entry(pay, width=20, font=(None, 10))
+            name.place(x = 75, y=30)
+            amount_label = Label(pay, text="Amount:", font=("sans-serif", 11)).place(x=3, y=67)
+            amount = Entry(pay, width=20, font=(None, 10))
+            amount.place(x = 75, y=67)
 
 
             sign = IntVar(pay, -1)
-            Radiobutton(pay, text="outgoing –", font="TkDefaultFont 10", variable=sign, value=-1).place(x = 195, y = 20)
-            Radiobutton(pay, text="incoming +", font="TkDefaultFont 10", variable=sign, value=1).place(x = 195, y = 50)
+            Radiobutton(pay, text="outgoing –", font="TkDefaultFont 12", variable=sign, value=-1).place(x = 270, y = 30)
+            Radiobutton(pay, text="incoming +", font="TkDefaultFont 12", variable=sign, value=1).place(x = 270, y = 65)
 
             clicked = StringVar()
             clicked.set("Select category")
-            menu = OptionMenu(pay, clicked, "————————", *cat.categories)
-            menu.config(width=17)
-            menu.place(x = 320, y = 30)
+            menu = OptionMenu(pay, clicked, "—————————", *cat.categories)
+            menu.config(width=20,  font=("Helvetica bold", 11))
+            menu.place(x = 425, y = 45)
+            menu_text = pay.nametowidget(menu.menuname)
+            menu_text.config(font=("TkDefaultFont", 11))
 
             def add():
                 new_name = name.get()
@@ -243,7 +261,7 @@ class Transactions:
                 name.delete(0, END)
                 amount.delete(0, END)
                 clicked.set("Select category")
-                if new_name == None or new_amount == None or new_category == "————————" or new_category == "Select category":
+                if new_name == None or new_amount == None or new_category == "—————————" or new_category == "Select category":
                     return 0
                 new_amount = new_sign * int(new_amount)
                 self.modify_budget(new_name, new_category, new_amount, app)
@@ -258,8 +276,8 @@ class Transactions:
                 cat.category_table(app)
 
 
-            add = Button(pay, text="Add payment", command=add).place(x=200, y=80)
-        trans = Button(app, text="Payment", command=trans, font=(None, 11), height=2,width=15).place(x = 162, y = 951)
+            add = Button(pay, text="Add payment", command=add, font=(None, 11), height=1, width=17).place(x=255, y=105)
+        trans = Button(app, text="Payment", command=trans, font=(None, 12), height=2,width=15).place(x = 177, y = 947)
 
 
 class BgtMng(Tk):
@@ -269,10 +287,10 @@ class BgtMng(Tk):
         width=self.winfo_screenwidth()
         height= self.winfo_screenheight()
         self.geometry(f"{width}x{height}")
-        history_label = Label(self, text= "—————————————history————————————————", font="Helvetica 15 italic")
+        history_label = Label(self, text= "—————————————history——————————————————————————————————statistics———————————————", font="Helvetica 15 italic")
         history_label.place(x = -4, y = 110)
         category_label = Label(self, text= "–—————————————category———————————————", font="Helvetica 15 italic")
-        category_label.place(x = -12, y = 750)
+        category_label.place(x = -12, y = 745)
 
 if __name__ == "__main__":
     app = BgtMng()
@@ -284,6 +302,8 @@ if __name__ == "__main__":
     cat.categories_button(app)
     cat.category_table(app)
     pay.transaction_button(app, cat)
+    cat.statistics(app)
+
 
     app.mainloop()
 

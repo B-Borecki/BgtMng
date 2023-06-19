@@ -57,39 +57,42 @@ class Categories:
     def __init__(self, budget):
         self.bgt = budget
         self.categories_limits = con.cursor().execute("""SELECT * FROM CATEGORIES;""").fetchall()
+        self.categories_limits = self.categories_limits[1:] + [self.categories_limits[0]]
         self.categories = [i[0] for i in self.categories_limits]
         if con.cursor().execute(f"""SELECT SUM("limit") FROM CATEGORIES;""").fetchall()[0][0] == None:
             self.savings = 0
         else:
             self.savings = int(con.cursor().execute(f"""SELECT SUM("limit") FROM CATEGORIES;""").fetchall()[0][0]) - int(con.cursor().execute(f"""SELECT SUM(amount) FROM BUDGET WHERE name != 'budget';""").fetchall()[0][0])
         self.actual = con.cursor().execute("SELECT * FROM BUDGET WHERE name != 'budget';").fetchall()
+        self.actual = self.actual[1:] + [self.actual[0]]
         if self.bgt.prev.month != self.bgt.curr.month or self.bgt.prev.year != self.bgt.curr.year:
             con.cursor().execute(f"""INSERT INTO STATISTICS(category, date, expense, "limit")
             VALUES ('savings', '{self.bgt.prev.strftime("%m-%Y")}', {self.savings},'');""")
             for i in range(len(self.actual)):
                 con.cursor().execute(f"""INSERT INTO STATISTICS(category, date, expense, "limit")
-                VALUES ('{self.actual[i][0]}', '{self.bgt.prev.strftime("%m-%Y")}',{self.actual[i][1]}, {self.categories_limits[i][1]});""")
-                self.actual[i] = (self.actual[i][0], 0)
+                VALUES ('{self.actual[len(self.actual)-1-i][0]}', '{self.bgt.prev.strftime("%m-%Y")}',{self.actual[len(self.actual)-1-i][1]}, {self.categories_limits[len(self.actual)-1-i][1]});""")
+                self.actual[len(self.actual)-1-i] = (self.actual[len(self.actual)-1-i][0], 0)
             con.cursor().execute(f"""INSERT INTO STATISTICS(category, date, expense, "limit")
             VALUES ('', '', '','');""")
             con.cursor().execute(f"""UPDATE BUDGET
             SET amount=0 WHERE name!= 'budget';""")
             self.actual = con.cursor().execute("SELECT * FROM BUDGET WHERE name != 'budget';").fetchall()
+            self.actual = self.actual[1:] + [self.actual[0]]
             self.savings = 0
 
             for i in range(len(self.actual)):
                 self.savings += self.categories_limits[i][1] - self.actual[i][1]
         self.stats = con.cursor().execute("SELECT * FROM STATISTICS;").fetchall()[2:-1][::-1]
-        self.monthly_budget = sum([i[1] for i in self.actual])
+        self.monthly_budget = -sum([i[1] for i in self.actual])
 
     def add_category(self, name, limit):
         con.cursor().execute(f"""INSERT INTO CATEGORIES(name, "limit")
         VALUES ('{name}', {limit});""")
-        self.categories_limits.append((f'{name}', limit))
-        self.categories.append(name)
+        self.categories_limits = self.categories_limits[:-1] + [(f'{name}', limit)] + [self.categories_limits[-1]]
+        self.categories = self.categories[:-1] + [name] + [self.categories[-1]]
         con.cursor().execute(f"""INSERT INTO BUDGET(name, amount)
         VALUES ('{name}', '0');""")
-        self.actual.append((f'{name}', 0))
+        self.actual = self.actual[:-1] + [(f'{name}', 0)] + [self.actual[-1]]
         self.savings += int(limit)
 
     def del_category(self, name):
@@ -107,15 +110,17 @@ class Categories:
         category_table.heading("category", text="category")
         category_table.heading("expense", text="monthly expense")
         category_table.heading("limit", text="limit")
-        i = 0
-        for record in self.actual:
-            category_table.insert('', END, values=record + (self.categories_limits[i][1],))
-            i+=1
+
+        for record in range(len(self.actual)):
+            category_table.insert('', END, values=self.actual[record] + (self.categories_limits[record][1],))
+
         category_table.place(x = 16, y = 776)
         scrollbar2 = Scrollbar(app, orient=VERTICAL, command=category_table.yview, width = 16)
         category_table.configure(yscrollcommand=scrollbar2.set)
         scrollbar2.place(x = -1, y = 776, height=145)
-        savings_label = Label(app, text = f"                 savings:                                     {self.savings}", font=("Helvetica bold", 11), bg='#F5F5F5', width=72, anchor=W).place(x=16, y=922)
+        #savings_label = Label(app, text = f"                 savings:                                     {self.savings}", font=("Helvetica bold", 11), bg='#F5F5F5', width=72, anchor=W).place(x=16, y=922)
+        self.monthly_budget_button(app)
+        self.savings_button(app)
 
     def categories_button(self, app):
         def modify_categories():
@@ -146,7 +151,7 @@ class Categories:
                     old_limit = self.categories_limits[self.categories.index(new_name)][1]
                     self.categories_limits[self.categories.index(new_name)] = (new_name, new_limit)
                     con.cursor().execute(f"""UPDATE CATEGORIES SET "limit" = {new_limit} WHERE name = '{new_name}';""")
-                    self.savings -= (old_limit - int(new_limit))
+                    self.savings -= (int(old_limit) - int(new_limit))
                 else:
                     self.add_category(new_name, new_limit)
                 self.category_table(app)
@@ -166,8 +171,12 @@ class Categories:
                 menu_text.config(font=("TkDefaultFont", 11))
                 def del_button():
                     del_name = clicked.get()
-                    if del_name == 'Select category' or del_name == "—————————":
+                    if del_name == 'Select category' or del_name == "—————————" or del_name == "other":
                         return 0
+                    for i in self.categories_limits:
+                        if i[0] == del_name:
+                            self.savings -= int(i[1])
+                            break
                     self.del_category(del_name)
                     self.category_table(app)
                     del_menu()
@@ -176,6 +185,7 @@ class Categories:
             del_menu()
         categories_button = Button(app, text = "Modify categories", font=(None, 12), height=2,width=15, command=modify_categories)
         categories_button.place(x = 15, y = 947)
+
     def statistics(self, app):
         stats_table = ttk.Treeview(app, columns=("category", "month", "amount", "limit"), show='headings', height=38)
         stats_table.column("category", width=145, minwidth=145, anchor=CENTER)
@@ -188,11 +198,44 @@ class Categories:
         stats_table.heading("limit", text="limit")
         for record in self.stats:
             stats_table.insert('', END, values=record)
-        stats_table.place(x = 750, y = 140)
+        stats_table.place(x = 670, y = 140)
 
         scrollbar = Scrollbar(app, orient=VERTICAL, command=stats_table.yview, width = 16)
         stats_table.configure(yscrollcommand=scrollbar.set)
-        scrollbar.place(x = 733, y = 140, height=788)
+        scrollbar.place(x = 670, y = 140, height=788)
+
+    butt1 = 0
+    def monthly_budget_button(self, app):
+        button_font_1 = font.Font(family='Arial', size=30)
+        button_font_2 = font.Font(family='Arial', size=37, weight='bold')
+        def show_bgt():
+            bgt_button.configure(text=f"{self.monthly_budget}", command=hide_bgt, font=button_font_2)
+            self.butt1 = 1
+        def hide_bgt():
+            bgt_button.configure(text="Show monthly budget status", command=show_bgt, font=button_font_1)
+            self.butt1 = 0
+        if self.butt1 == 0:
+            bgt_button = Button(app, text = "Show monthly budget status", font=button_font_1, command=show_bgt, height = 2, width=23, bd=2)
+        else:
+            bgt_button = Button(app, text = f"{self.monthly_budget}", font=button_font_2, command=hide_bgt, height = 2, width=23, bd=2)
+        bgt_button.place(x = 673, y = 10,  height=85, width=580)
+
+    butt2 = 0
+    def savings_button(self, app):
+        button_font_1 = font.Font(family='Arial', size=30)
+        button_font_2 = font.Font(family='Arial', size=37, weight='bold')
+        def show_savings():
+            savings_button.configure(text=f"{self.savings}", command=hide_savings, font=button_font_2)
+            self.butt2 = 1
+        def hide_savings():
+            savings_button.configure(text="Show monthly savings", command=show_savings, font=button_font_1)
+            self.butt2 = 0
+        if self.butt2 == 0:
+            savings_button = Button(app, text = "Show monthly savings", font=button_font_1, command=show_savings, height = 2, width=23, bd=2)
+        else:
+            savings_button = Button(app, text = f"{self.savings}", font=button_font_2, command=hide_savings, height = 2, width=23, bd=2)
+        savings_button.place(x = 1325, y = 10,  height=85, width=580)
+
 
 class Recurring_payment:
     def __init__(self, category):
@@ -290,9 +333,9 @@ class BgtMng(Tk):
         width=self.winfo_screenwidth()
         height= self.winfo_screenheight()
         self.geometry(f"{width}x{height}")
-        history_label = Label(self, text= "—————————————history——————————————————————————————————statistics———————————————", font="Helvetica 15 italic")
+        history_label = Label(self, text= "—————————————history——————————————————————————————statistics———————————————————————————————————————————————", font="Helvetica 15 italic")
         history_label.place(x = -4, y = 110)
-        category_label = Label(self, text= "–—————————————category———————————————", font="Helvetica 15 italic")
+        category_label = Label(self, text= "–—————————————category—————————————————", font="Helvetica 15 italic")
         category_label.place(x = -12, y = 745)
 
 if __name__ == "__main__":

@@ -427,35 +427,228 @@ class Categories:
 
 
 class Recurring_payment:
-    def __init__(self, category):
-        self.category = category
-        pay_list = (
-            con.cursor()
-            .execute(f"""SELECT * FROM PAYMENTS WHERE category == '{category}';""")
-            .fetchall()
-        )
+    bills = (
+        con.cursor()
+        .execute(f"""SELECT * FROM PAYMENTS WHERE category == 'bill';""")
+        .fetchall()
+    )
 
-    def add(self, name, amount, payday):
+    payouts = (
+        con.cursor()
+        .execute(f"""SELECT * FROM PAYMENTS WHERE category == 'payout';""")
+        .fetchall()
+    )
+
+    subs = (
+        con.cursor()
+        .execute(f"""SELECT * FROM PAYMENTS WHERE category == 'subscription';""")
+        .fetchall()
+    )
+
+    def add(self, name, category, amount, payday):
         con.cursor().execute(
             f"""INSERT INTO PAYMENTS(name, category, amount, payday)
-        VALUES ('{name}', '{self.category}', {amount}, {payday});"""
+        VALUES ('{name}', '{category}', {-int(amount)}, {payday});"""
         )
-        self.pay_list.append((name, f"{category}", amount, payday))
+        if category == 'bill':
+            self.bills.append((name, category, -int(amount), payday))
+        elif category == 'payout':
+            self.payouts.append((name, category, amount, payday))
+        elif category == 'subscription':
+            self.subs.append((name, category, -int(amount), payday))
 
-    def modify_budget(self, budget):
-        for i in self.pay_list:
-            payday = i[3]
-            amount = i[2]
-            name = i[0]
-            add_day = dt.timedelta(days=1)
-            it = budget.prev + add_day
-            while it <= budget.curr:
-                if ((it + add_day).day == 1 and payday > it.day) or it.day == payday:
+    def delete(self, name, category):
+        con.cursor().execute(f"""DELETE FROM PAYMENTS WHERE name = '{name}' AND category = '{category}';""")
+        if category == 'bill':
+            for i in range(len(self.bills)):
+                if self.bills[i][0] == name:
+                    self.bills = self.bills[:i] + self.bills[i+1:]
+        elif category == 'payout':
+            for i in range(len(self.payouts)):
+                if self.payouts[i][0] == name:
+                    self.payouts = self.payouts[:i] + self.payouts[i+1:]
+
+        elif category == 'subscription':
+            for i in range(len(self.subs)):
+                if self.subs[i][0] == name:
+                    self.subs = self.subs[:i] + self.subs[i+1:]
+
+    def past_month(self, budget):
+        def modify(pay_list):
+            for record in pay_list:
+                payday = record[3]
+                amount = record[2]
+                category = record[1]
+                name = record[0]
+                if payday > budget.prev.day:
                     budget.acc_balance += amount
-                    budget.history.append(
-                        (name, amount, it.strftime("%d-%m-%Y"), budget.acc_balance)
+                    budget.history = [
+                        (name, category, amount, f"{payday}-{budget.prev.month}-{budget.prev.year}")
+                    ] + self.budget.hostory
+
+                    con.cursor().execute(
+                    f"""INSERT INTO HISTORY(name, category, amount, date)
+                    VALUES ('{name}', '{category}', {amount}, '{payday}-{budget.prev.month}-{budget.prev.year}');"""
                     )
-                it += add_day
+
+
+        if budget.curr.month != budget.prev.month or budget.curr.year != budget.prev.year:
+            modify(self.bills)
+            modify(self.payouts)
+            modify(self.subs)
+
+    def actual_month(self, budget, cat):
+        def modify(pay_list, prev):
+            for record in pay_list:
+                payday = record[3]
+                amount = record[2]
+                category = record[1]
+                name = record[0]
+                if payday > prev and payday < budget.curr.day:
+                    budget.acc_balance += amount
+                    budget.history = [
+                        (name, category, amount, f"{payday}-{budget.curr.month}-{budget.curr.year}")
+                    ] + budget.history
+                    con.cursor().execute(
+                    f"""INSERT INTO HISTORY(name, category, amount, date)
+                    VALUES ('{name}', '{category}', {amount}, '{payday}-{budget.curr.month}-{budget.curr.year}');"""
+                    )
+                    cat.monthly_budget += amount
+        if budget.curr.month == budget.prev.month and budget.curr.year == budget.prev.year:
+            modify(self.bills, budget.prev.day)
+            modify(self.payouts, budget.prev.day)
+            modify(self.subs, budget.prev.day)
+        else:
+            modify(self.bills, 1)
+            modify(self.payouts, 1)
+            modify(self.subs, 1)
+
+    def bills_table(self, app):
+        bills_table = ttk.Treeview(
+            app, columns=("name", "amount", "payday"), show="headings", height=7
+        )
+        bills_table.column("name", width=187, minwidth=185, anchor=CENTER)
+        bills_table.column("amount", width=188, minwidth=185, anchor=CENTER)
+        bills_table.column("payday", width=187, minwidth=185, anchor=CENTER)
+        bills_table.heading("name", text="name")
+        bills_table.heading("amount", text="amount")
+        bills_table.heading("payday", text="payday")
+
+        for record in self.bills:
+            bills_table.insert(
+                "",
+                END,
+                values=(record[0], record[2], record[3]))
+
+        bills_table.place(x=1340, y=140)
+        scrollbar = Scrollbar(app, orient=VERTICAL, command=bills_table.yview, width=17)
+        bills_table.configure(yscrollcommand=scrollbar.set)
+        scrollbar.place(x=1322, y=140, height=168)
+
+    def bills_button(self, app):
+        def modify_bills():
+            mod = Toplevel()
+            mod.title("Modify bills")
+            mod.geometry("650x150")
+            mod.maxsize(650, 150)
+            mod.minsize(650, 150)
+            canvas = Canvas(mod)
+            canvas.create_line(100, 0, 100, 200)
+            canvas.place(x=230, y=-5)
+
+            name = Entry(mod, width=20, font=(None, 10))
+            name.place(x=90, y=20)
+            name_label = Label(mod, text="Bill name:", font=("sans-serif", 11))
+            name_label.place(x=3, y=20)
+            amount = Entry(mod, width=20, font=(None, 10))
+            amount.place(x=90, y=50)
+            amount_label = Label(mod, text="Amount:", font=("sans-serif", 11))
+            amount_label.place(x=10, y=50)
+            payday = Entry(mod, width=20, font=(None, 10))
+            payday.place(x=90, y=80)
+            payday_label = Label(mod, text="Payday:", font=("sans-serif", 11))
+            payday_label.place(x=17, y=80)
+
+            def add_button():
+                new_name = name.get()
+                new_payday = payday.get()
+                new_amount = amount.get()
+                name.delete(0, END)
+                payday.delete(0, END)
+                amount.delete(0, END)
+                if new_name in self.bills:
+                    k = 0
+                    for i in range(len(self.bills)):
+                        if self.bills[i][0] == new_name:
+                             k = i
+                             break
+                    self.bills = self.bills[:k] + [(new_name, 'bill', 'new_amount', new_payday)]
+                    con.cursor().execute(
+                        f"""UPDATE PAYMENTS SET "payday" = {new_payday} WHERE name = '{new_name}';"""
+                    )
+                    con.cursor().execute(
+                        f"""UPDATE PAYMENTS SET "amount" = {new_amount} WHERE name = '{new_name}';"""
+                    )
+                else:
+                    self.add(new_name, 'bill', new_amount, new_payday)
+                self.bills_table(app)
+                del_menu()
+
+            add_button = Button(
+                mod,
+                text="Add bill",
+                font=(None, 11),
+                command=add_button,
+                height=1,
+                width=17,
+            )
+            add_button.place(x=90, y=110)
+
+            def del_menu():
+                clicked = StringVar()
+                clicked.set("Select bill")
+                bills_name = []
+                for i in self.bills:
+                    bills_name.append(i[0])
+                menu = OptionMenu(mod, clicked, "—————————", *bills_name)
+                menu.config(width=20, font=("Helvetica bold", 11))
+                menu.place(x=390, y=85)
+                menu_text = mod.nametowidget(menu.menuname)
+                menu_text.config(font=("TkDefaultFont", 11))
+
+                def del_button():
+                    del_name = clicked.get()
+                    if (
+                        del_name == "Select bill"
+                        or del_name == "—————————"
+                    ):
+                        return 0
+
+                    self.delete(del_name, 'bill')
+                    self.bills_table(app)
+                    del_menu()
+
+                del_button = Button(
+                    mod,
+                    text="Delete bill",
+                    command=del_button,
+                    font=(None, 11),
+                    height=1,
+                    width=17,
+                )
+                del_button.place(x=410, y=35)
+
+            del_menu()
+
+        bills_button = Button(
+            app,
+            text="Modify bills",
+            font=(None, 12),
+            height=2,
+            width=15,
+            command=modify_bills,
+        )
+        bills_button.place(x=1340, y=305)
 
 
 class Transactions:
@@ -570,7 +763,7 @@ class BgtMng(Tk):
         history_label = Label(
             self,
             text=("—————————————history———————————————————"
-            "———————————statistics———————————————————————————————————————————————"),
+            "———————————statistics———————————————————————————————bills——————————————"),
             font="Helvetica 15 italic",
         )
         history_label.place(x=-4, y=110)
@@ -585,14 +778,19 @@ class BgtMng(Tk):
 if __name__ == "__main__":
     app = BgtMng()
     bgt = Budget()
-    cat = Categories(bgt)
     pay = Transactions(bgt)
+    rec = Recurring_payment()
+    rec.past_month(bgt)
+    cat = Categories(bgt)
+    rec.actual_month(bgt, cat)
     bgt.budget_button(app)
     bgt.history_table(app)
     cat.categories_button(app)
     cat.category_table(app)
     pay.transaction_button(app, cat)
     cat.statistics(app)
+    rec.bills_table(app)
+    rec.bills_button(app)
 
     app.mainloop()
 

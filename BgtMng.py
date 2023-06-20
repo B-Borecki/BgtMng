@@ -62,12 +62,14 @@ class Categories:
         if con.cursor().execute(f"""SELECT SUM("limit") FROM CATEGORIES;""").fetchall()[0][0] == None:
             self.savings = 0
         else:
-            self.savings = int(con.cursor().execute(f"""SELECT SUM("limit") FROM CATEGORIES;""").fetchall()[0][0]) - int(con.cursor().execute(f"""SELECT SUM(amount) FROM BUDGET WHERE name != 'budget';""").fetchall()[0][0])
+            self.savings = int(con.cursor().execute(f"""SELECT SUM("limit") FROM CATEGORIES;""").fetchall()[0][0]) + int(con.cursor().execute(f"""SELECT SUM(amount) FROM BUDGET WHERE name != 'budget';""").fetchall()[0][0])
         self.actual = con.cursor().execute("SELECT * FROM BUDGET WHERE name != 'budget';").fetchall()
         self.actual = self.actual[1:] + [self.actual[0]]
         if self.bgt.prev.month != self.bgt.curr.month or self.bgt.prev.year != self.bgt.curr.year:
             con.cursor().execute(f"""INSERT INTO STATISTICS(category, date, expense, "limit")
-            VALUES ('savings', '{self.bgt.prev.strftime("%m-%Y")}', {self.savings},'');""")
+            VALUES ('remains from limit', '{self.bgt.prev.strftime("%m-%Y")}', {self.savings},'');""")
+            con.cursor().execute(f"""INSERT INTO STATISTICS(category, date, expense, "limit")
+            VALUES ('monthly budget', '{self.bgt.prev.strftime("%m-%Y")}', {sum([i[1] for i in self.actual])},'');""")
             for i in range(len(self.actual)):
                 con.cursor().execute(f"""INSERT INTO STATISTICS(category, date, expense, "limit")
                 VALUES ('{self.actual[len(self.actual)-1-i][0]}', '{self.bgt.prev.strftime("%m-%Y")}',{self.actual[len(self.actual)-1-i][1]}, {self.categories_limits[len(self.actual)-1-i][1]});""")
@@ -81,9 +83,9 @@ class Categories:
             self.savings = 0
 
             for i in range(len(self.actual)):
-                self.savings += self.categories_limits[i][1] - self.actual[i][1]
+                self.savings += self.categories_limits[i][1] + self.actual[i][1]
         self.stats = con.cursor().execute("SELECT * FROM STATISTICS;").fetchall()[2:-1][::-1]
-        self.monthly_budget = -sum([i[1] for i in self.actual])
+        self.monthly_budget = sum([i[1] for i in self.actual])
 
     def add_category(self, name, limit):
         con.cursor().execute(f"""INSERT INTO CATEGORIES(name, "limit")
@@ -98,6 +100,13 @@ class Categories:
     def del_category(self, name):
         con.cursor().execute(f"""DELETE FROM CATEGORIES WHERE name = '{name}';""")
         con.cursor().execute(f"""DELETE FROM BUDGET WHERE name = '{name}';""")
+        new_amount = 0
+        for i in range(len(self.actual)):
+            if self.actual[i][0] == "other":
+                new_amount = self.actual[i][1] + self.actual[self.categories.index(name)][1]
+                self.actual = self.actual[:i] + [("other", new_amount)] + self.actual[i+1:]
+                con.cursor().execute(f"""UPDATE BUDGET SET amount = {new_amount} WHERE name = 'other';""")
+                break
         self.categories_limits.remove(self.categories_limits[self.categories.index(name)])
         self.actual.remove(self.actual[self.categories.index(name)])
         self.categories.remove(name)
@@ -118,7 +127,6 @@ class Categories:
         scrollbar2 = Scrollbar(app, orient=VERTICAL, command=category_table.yview, width = 16)
         category_table.configure(yscrollcommand=scrollbar2.set)
         scrollbar2.place(x = -1, y = 776, height=145)
-        #savings_label = Label(app, text = f"                 savings:                                     {self.savings}", font=("Helvetica bold", 11), bg='#F5F5F5', width=72, anchor=W).place(x=16, y=922)
         self.monthly_budget_button(app)
         self.savings_button(app)
 
@@ -188,7 +196,7 @@ class Categories:
 
     def statistics(self, app):
         stats_table = ttk.Treeview(app, columns=("category", "month", "amount", "limit"), show='headings', height=38)
-        stats_table.column("category", width=145, minwidth=145, anchor=CENTER)
+        stats_table.column("category", width=170, minwidth=145, anchor=CENTER)
         stats_table.column("month", width=145, minwidth=145, anchor=CENTER)
         stats_table.column("amount", width=145, minwidth=145, anchor=CENTER)
         stats_table.column("limit", width=145, minwidth=145, anchor=CENTER)
@@ -198,11 +206,11 @@ class Categories:
         stats_table.heading("limit", text="limit")
         for record in self.stats:
             stats_table.insert('', END, values=record)
-        stats_table.place(x = 670, y = 140)
+        stats_table.place(x = 660, y = 140)
 
         scrollbar = Scrollbar(app, orient=VERTICAL, command=stats_table.yview, width = 16)
         stats_table.configure(yscrollcommand=scrollbar.set)
-        scrollbar.place(x = 670, y = 140, height=788)
+        scrollbar.place(x = 660, y = 140, height=788)
 
     butt1 = 0
     def monthly_budget_button(self, app):
@@ -218,7 +226,7 @@ class Categories:
             bgt_button = Button(app, text = "Show monthly budget status", font=button_font_1, command=show_bgt, height = 2, width=23, bd=2)
         else:
             bgt_button = Button(app, text = f"{self.monthly_budget}", font=button_font_2, command=hide_bgt, height = 2, width=23, bd=2)
-        bgt_button.place(x = 673, y = 10,  height=85, width=580)
+        bgt_button.place(x = 663, y = 10,  height=85, width=604)
 
     butt2 = 0
     def savings_button(self, app):
@@ -228,10 +236,10 @@ class Categories:
             savings_button.configure(text=f"{self.savings}", command=hide_savings, font=button_font_2)
             self.butt2 = 1
         def hide_savings():
-            savings_button.configure(text="Show monthly savings", command=show_savings, font=button_font_1)
+            savings_button.configure(text="Show remaining limit amount", command=show_savings, font=button_font_1)
             self.butt2 = 0
         if self.butt2 == 0:
-            savings_button = Button(app, text = "Show monthly savings", font=button_font_1, command=show_savings, height = 2, width=23, bd=2)
+            savings_button = Button(app, text = "Show remaining limit amount", font=button_font_1, command=show_savings, height = 2, width=23, bd=2)
         else:
             savings_button = Button(app, text = f"{self.savings}", font=button_font_2, command=hide_savings, height = 2, width=23, bd=2)
         savings_button.place(x = 1325, y = 10,  height=85, width=580)
@@ -265,7 +273,9 @@ class Transactions:
     def __init__(self, budget):
         self.budget = budget
 
-    def modify_budget(self, name, category, amount, app):
+    def modify_budget(self, name, category, amount, app, cat):
+        cat.monthly_budget += amount
+        cat.monthly_budget_button(app)
         self.budget.acc_balance += amount
         self.budget.history = [((name, category, amount, self.budget.curr.strftime("%d-%m-%Y")))] + self.budget.history
         self.budget.budget_button(app)
@@ -310,17 +320,16 @@ class Transactions:
                 if new_name == None or new_amount == None or new_category == "—————————" or new_category == "Select category":
                     return 0
                 new_amount = new_sign * int(new_amount)
-                self.modify_budget(new_name, new_category, new_amount, app)
+                self.modify_budget(new_name, new_category, new_amount, app, cat)
                 self.budget.history_table(app)
                 cat.savings += new_amount
                 for i in range (len(cat.actual)):
                     if cat.actual[i][0] == new_category:
-                        new_amount = cat.actual[i][1] - new_amount
+                        new_amount = cat.actual[i][1] + new_amount
                         cat.actual = cat.actual[:i] + [(new_category, new_amount)] + cat.actual[i+1:]
                         break
                 con.cursor().execute(f"""UPDATE BUDGET SET amount = {new_amount} WHERE name = '{new_category}';""")
                 cat.category_table(app)
-
 
             add = Button(pay, text="Add payment", command=add, font=(None, 11), height=1, width=17).place(x=255, y=105)
         trans = Button(app, text="Payment", command=trans, font=(None, 12), height=2,width=15).place(x = 177, y = 947)

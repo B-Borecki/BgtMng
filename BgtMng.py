@@ -200,7 +200,7 @@ class Categories:
 
     def category_table(self, app):
         category_table = ttk.Treeview(
-            app, columns=("category", "expense", "limit"), show="headings", height=6
+            app, columns=("category", "expense", "limit"), show="headings", height=7
         )
         category_table.column("category", width=193, minwidth=193, anchor=CENTER)
         category_table.column("expense", width=193, minwidth=193, anchor=CENTER)
@@ -216,10 +216,10 @@ class Categories:
                 values=self.actual[record] + (self.categories_limits[record][1],),
             )
 
-        category_table.place(x=16, y=776)
+        category_table.place(x=16, y=780)
         scrollbar2 = Scrollbar(app, orient=VERTICAL, command=category_table.yview, width=16)
         category_table.configure(yscrollcommand=scrollbar2.set)
-        scrollbar2.place(x=-1, y=776, height=145)
+        scrollbar2.place(x=-1, y=780, height=168)
         self.monthly_budget_button(app)
         self.savings_button(app)
 
@@ -448,30 +448,33 @@ class Recurring_payment:
     def add(self, name, category, amount, payday):
         con.cursor().execute(
             f"""INSERT INTO PAYMENTS(name, category, amount, payday)
-        VALUES ('{name}', '{category}', {-int(amount)}, {payday});"""
+        VALUES ('{name}', '{category}', {amount}, {payday});"""
         )
         if category == 'bill':
-            self.bills.append((name, category, -int(amount), payday))
+            self.bills.append((name, category, amount, payday))
         elif category == 'payout':
             self.payouts.append((name, category, amount, payday))
         elif category == 'subscription':
-            self.subs.append((name, category, -int(amount), payday))
+            self.subs.append((name, category, amount, payday))
 
     def delete(self, name, category):
-        con.cursor().execute(f"""DELETE FROM PAYMENTS WHERE name = '{name}' AND category = '{category}';""")
         if category == 'bill':
             for i in range(len(self.bills)):
                 if self.bills[i][0] == name:
                     self.bills = self.bills[:i] + self.bills[i+1:]
+                    break
         elif category == 'payout':
             for i in range(len(self.payouts)):
                 if self.payouts[i][0] == name:
                     self.payouts = self.payouts[:i] + self.payouts[i+1:]
-
+                    break
         elif category == 'subscription':
             for i in range(len(self.subs)):
                 if self.subs[i][0] == name:
                     self.subs = self.subs[:i] + self.subs[i+1:]
+                    break
+
+        con.cursor().execute(f"""DELETE FROM PAYMENTS WHERE name = '{name}' AND category = '{category}';""")
 
     def past_month(self, budget):
         def modify(pay_list):
@@ -484,7 +487,7 @@ class Recurring_payment:
                     budget.acc_balance += amount
                     budget.history = [
                         (name, category, amount, f"{payday}-{budget.prev.month}-{budget.prev.year}")
-                    ] + self.budget.hostory
+                    ] + budget.history
 
                     con.cursor().execute(
                     f"""INSERT INTO HISTORY(name, category, amount, date)
@@ -504,7 +507,7 @@ class Recurring_payment:
                 amount = record[2]
                 category = record[1]
                 name = record[0]
-                if payday > prev and payday < budget.curr.day:
+                if payday > prev and payday <= budget.curr.day:
                     budget.acc_balance += amount
                     budget.history = [
                         (name, category, amount, f"{payday}-{budget.curr.month}-{budget.curr.year}")
@@ -572,17 +575,18 @@ class Recurring_payment:
             def add_button():
                 new_name = name.get()
                 new_payday = payday.get()
-                new_amount = amount.get()
+                new_amount = -int(amount.get())
                 name.delete(0, END)
                 payday.delete(0, END)
                 amount.delete(0, END)
-                if new_name in self.bills:
+                bill_names = [i[0] for i in self.bills]
+                if new_name in bill_names:
                     k = 0
                     for i in range(len(self.bills)):
                         if self.bills[i][0] == new_name:
                              k = i
                              break
-                    self.bills = self.bills[:k] + [(new_name, 'bill', 'new_amount', new_payday)]
+                    self.bills = self.bills[:k] + [(new_name, 'bill', new_amount, new_payday)]
                     con.cursor().execute(
                         f"""UPDATE PAYMENTS SET "payday" = {new_payday} WHERE name = '{new_name}';"""
                     )
@@ -649,6 +653,262 @@ class Recurring_payment:
             command=modify_bills,
         )
         bills_button.place(x=1340, y=305)
+
+    def payouts_table(self, app):
+        payouts_table = ttk.Treeview(
+            app, columns=("name", "amount", "payday"), show="headings", height=7
+        )
+        payouts_table.column("name", width=187, minwidth=185, anchor=CENTER)
+        payouts_table.column("amount", width=188, minwidth=185, anchor=CENTER)
+        payouts_table.column("payday", width=187, minwidth=185, anchor=CENTER)
+        payouts_table.heading("name", text="name")
+        payouts_table.heading("amount", text="amount")
+        payouts_table.heading("payday", text="payday")
+
+        for record in self.payouts:
+            payouts_table.insert(
+                "",
+                END,
+                values=(record[0], record[2], record[3]))
+
+        payouts_table.place(x=1340, y=460)
+        scrollbar = Scrollbar(app, orient=VERTICAL, command=payouts_table.yview, width=17)
+        payouts_table.configure(yscrollcommand=scrollbar.set)
+        scrollbar.place(x=1322, y=460, height=168)
+
+    def payouts_button(self, app):
+        def modify_payouts():
+            mod = Toplevel()
+            mod.title("Modify payouts")
+            mod.geometry("650x150")
+            mod.maxsize(650, 150)
+            mod.minsize(650, 150)
+            canvas = Canvas(mod)
+            canvas.create_line(100, 0, 100, 200)
+            canvas.place(x=230, y=-5)
+
+            name = Entry(mod, width=20, font=(None, 10))
+            name.place(x=90, y=20)
+            name_label = Label(mod, text="Payout name:", font=("sans-serif", 11))
+            name_label.place(x=3, y=20)
+            amount = Entry(mod, width=20, font=(None, 10))
+            amount.place(x=90, y=50)
+            amount_label = Label(mod, text="Amount:", font=("sans-serif", 11))
+            amount_label.place(x=10, y=50)
+            payday = Entry(mod, width=20, font=(None, 10))
+            payday.place(x=90, y=80)
+            payday_label = Label(mod, text="Payday:", font=("sans-serif", 11))
+            payday_label.place(x=17, y=80)
+
+            def add_button():
+                new_name = name.get()
+                new_payday = payday.get()
+                new_amount = int(amount.get())
+                name.delete(0, END)
+                payday.delete(0, END)
+                amount.delete(0, END)
+                payout_names = [i[0] for i in self.payouts]
+                if new_name in payout_names:
+                    k = 0
+                    for i in range(len(self.payouts)):
+                        if self.payouts[i][0] == new_name:
+                             k = i
+                             break
+                    self.payouts = self.payouts[:k] + [(new_name, 'bill', new_amount, new_payday)]
+                    con.cursor().execute(
+                        f"""UPDATE PAYMENTS SET "payday" = {new_payday} WHERE name = '{new_name}';"""
+                    )
+                    con.cursor().execute(
+                        f"""UPDATE PAYMENTS SET "amount" = {new_amount} WHERE name = '{new_name}';"""
+                    )
+                else:
+                    self.add(new_name, 'payout', new_amount, new_payday)
+                self.payouts_table(app)
+                del_menu()
+
+            add_button = Button(
+                mod,
+                text="Add payout",
+                font=(None, 11),
+                command=add_button,
+                height=1,
+                width=17,
+            )
+            add_button.place(x=90, y=110)
+
+            def del_menu():
+                clicked = StringVar()
+                clicked.set("Select payout")
+                payouts_name = []
+                for i in self.payouts:
+                    payouts_name.append(i[0])
+                menu = OptionMenu(mod, clicked, "—————————", *payouts_name)
+                menu.config(width=20, font=("Helvetica bold", 11))
+                menu.place(x=390, y=85)
+                menu_text = mod.nametowidget(menu.menuname)
+                menu_text.config(font=("TkDefaultFont", 11))
+
+                def del_button():
+                    del_name = clicked.get()
+                    if (
+                        del_name == "Select payout"
+                        or del_name == "—————————"
+                    ):
+                        return 0
+
+                    self.delete(del_name, 'payout')
+                    self.payouts_table(app)
+                    del_menu()
+
+                del_button = Button(
+                    mod,
+                    text="Delete payout",
+                    command=del_button,
+                    font=(None, 11),
+                    height=1,
+                    width=17,
+                )
+                del_button.place(x=410, y=35)
+
+            del_menu()
+
+        payouts_button = Button(
+            app,
+            text="Modify payouts",
+            font=(None, 12),
+            height=2,
+            width=15,
+            command=modify_payouts,
+        )
+        payouts_button.place(x=1340, y=625)
+
+    def subs_table(self, app):
+        subs_table = ttk.Treeview(
+            app, columns=("name", "amount", "payday"), show="headings", height=7
+        )
+        subs_table.column("name", width=187, minwidth=185, anchor=CENTER)
+        subs_table.column("amount", width=188, minwidth=185, anchor=CENTER)
+        subs_table.column("payday", width=187, minwidth=185, anchor=CENTER)
+        subs_table.heading("name", text="name")
+        subs_table.heading("amount", text="amount")
+        subs_table.heading("payday", text="payday")
+
+        for record in self.subs:
+            subs_table.insert(
+                "",
+                END,
+                values=(record[0], record[2], record[3]))
+
+        subs_table.place(x=1340, y=780)
+        scrollbar = Scrollbar(app, orient=VERTICAL, command=subs_table.yview, width=17)
+        subs_table.configure(yscrollcommand=scrollbar.set)
+        scrollbar.place(x=1322, y=780, height=168)
+
+    def subs_button(self, app):
+        def modify_subs():
+            mod = Toplevel()
+            mod.title("Modify subscriptions")
+            mod.geometry("650x150")
+            mod.maxsize(650, 150)
+            mod.minsize(650, 150)
+            canvas = Canvas(mod)
+            canvas.create_line(100, 0, 100, 200)
+            canvas.place(x=230, y=-5)
+
+            name = Entry(mod, width=20, font=(None, 10))
+            name.place(x=90, y=20)
+            name_label = Label(mod, text="Subscription name:", font=("sans-serif", 11))
+            name_label.place(x=3, y=20)
+            amount = Entry(mod, width=20, font=(None, 10))
+            amount.place(x=90, y=50)
+            amount_label = Label(mod, text="Amount:", font=("sans-serif", 11))
+            amount_label.place(x=10, y=50)
+            payday = Entry(mod, width=20, font=(None, 10))
+            payday.place(x=90, y=80)
+            payday_label = Label(mod, text="Payday:", font=("sans-serif", 11))
+            payday_label.place(x=17, y=80)
+
+            def add_button():
+                new_name = name.get()
+                new_payday = payday.get()
+                new_amount = -int(amount.get())
+                name.delete(0, END)
+                payday.delete(0, END)
+                amount.delete(0, END)
+                subs_names = [i[0] for i in self.payouts]
+                if new_name in subs_names:
+                    k = 0
+                    for i in range(len(self.subs)):
+                        if self.subs[i][0] == new_name:
+                             k = i
+                             break
+                    self.subs = self.subs[:k] + [(new_name, 'subscription', new_amount, new_payday)]
+                    con.cursor().execute(
+                        f"""UPDATE PAYMENTS SET "payday" = {new_payday} WHERE name = '{new_name}';"""
+                    )
+                    con.cursor().execute(
+                        f"""UPDATE PAYMENTS SET "amount" = {new_amount} WHERE name = '{new_name}';"""
+                    )
+                else:
+                    self.add(new_name, 'subscription', new_amount, new_payday)
+                self.subs_table(app)
+                del_menu()
+
+            add_button = Button(
+                mod,
+                text="Add subscription",
+                font=(None, 11),
+                command=add_button,
+                height=1,
+                width=17,
+            )
+            add_button.place(x=90, y=110)
+
+            def del_menu():
+                clicked = StringVar()
+                clicked.set("Select subscription")
+                subs_name = []
+                for i in self.subs:
+                    subs_name.append(i[0])
+                menu = OptionMenu(mod, clicked, "—————————", *subs_name)
+                menu.config(width=20, font=("Helvetica bold", 11))
+                menu.place(x=390, y=85)
+                menu_text = mod.nametowidget(menu.menuname)
+                menu_text.config(font=("TkDefaultFont", 11))
+
+                def del_button():
+                    del_name = clicked.get()
+                    if (
+                        del_name == "Select subscription"
+                        or del_name == "—————————"
+                    ):
+                        return 0
+
+                    self.delete(del_name, 'subscription')
+                    self.subs_table(app)
+                    del_menu()
+
+                del_button = Button(
+                    mod,
+                    text="Delete subscription",
+                    command=del_button,
+                    font=(None, 11),
+                    height=1,
+                    width=17,
+                )
+                del_button.place(x=410, y=35)
+
+            del_menu()
+
+        subs_button = Button(
+            app,
+            text="Modify subscriptions",
+            font=(None, 12),
+            height=2,
+            width=15,
+            command=modify_subs,
+        )
+        subs_button.place(x=1340, y=947)
 
 
 class Transactions:
@@ -769,10 +1029,17 @@ class BgtMng(Tk):
         history_label.place(x=-4, y=110)
         category_label = Label(
             self,
-            text="–—————————————category—————————————————",
+            text="–—————————————category—————————————————"
+            "—————————————————————————————————————————————subscriptions————————————————",
             font="Helvetica 15 italic",
         )
-        category_label.place(x=-12, y=745)
+        category_label.place(x=-12, y=749)
+        payout_label = Label(
+            self,
+            text="————————————————————payouts—————————————",
+            font="Helvetica 15 italic",
+            )
+        payout_label.place(x=1200, y=428)
 
 
 if __name__ == "__main__":
@@ -791,7 +1058,10 @@ if __name__ == "__main__":
     cat.statistics(app)
     rec.bills_table(app)
     rec.bills_button(app)
-
+    rec.payouts_table(app)
+    rec.payouts_button(app)
+    rec.subs_table(app)
+    rec.subs_button(app)
     app.mainloop()
 
     bgt.add_to_db()

@@ -67,6 +67,7 @@ class Budget:
     history = con.cursor().execute("""SELECT * FROM HISTORY;""").fetchall()[::-1]
 
     def history_table(self, app):
+        self.history = sorted(self.history, key=lambda x: x[3], reverse=True)
         style = ttk.Style()
         style.configure("Treeview.Heading", font=(None, 12))
         style.configure("Treeview", font=("Helvetica bold", 11))
@@ -325,7 +326,7 @@ class Categories:
             app,
             columns=("category", "month", "amount", "limit"),
             show="headings",
-            height=38,
+            height=39,
         )
         stats_table.column("category", width=170, minwidth=145, anchor=CENTER)
         stats_table.column("month", width=145, minwidth=145, anchor=CENTER)
@@ -341,7 +342,7 @@ class Categories:
 
         scrollbar = Scrollbar(app, orient=VERTICAL, command=stats_table.yview, width=16)
         stats_table.configure(yscrollcommand=scrollbar.set)
-        scrollbar.place(x=660, y=140, height=788)
+        scrollbar.place(x=660, y=140, height=808)
 
     butt1 = 0
 
@@ -486,12 +487,12 @@ class Recurring_payment:
                 if payday > budget.prev.day:
                     budget.acc_balance += amount
                     budget.history = [
-                        (name, category, amount, f"{payday}-{budget.prev.month}-{budget.prev.year}")
+                        (name, category, amount, dt.date(day=payday,month=budget.prev.month,year=budget.prev.year).strftime("%d-%m-%Y"))
                     ] + budget.history
 
                     con.cursor().execute(
                     f"""INSERT INTO HISTORY(name, category, amount, date)
-                    VALUES ('{name}', '{category}', {amount}, '{payday}-{budget.prev.month}-{budget.prev.year}');"""
+                    VALUES ('{name}', '{category}', {amount}, '{dt.date(day=payday,month=budget.prev.month,year=budget.prev.year).strftime("%d-%m-%Y")}');"""
                     )
 
 
@@ -510,11 +511,11 @@ class Recurring_payment:
                 if payday > prev and payday <= budget.curr.day:
                     budget.acc_balance += amount
                     budget.history = [
-                        (name, category, amount, f"{payday}-{budget.curr.month}-{budget.curr.year}")
+                        (name, category, amount, dt.date(day=payday,month=budget.curr.month,year=budget.curr.year).strftime("%d-%m-%Y"))
                     ] + budget.history
                     con.cursor().execute(
                     f"""INSERT INTO HISTORY(name, category, amount, date)
-                    VALUES ('{name}', '{category}', {amount}, '{payday}-{budget.curr.month}-{budget.curr.year}');"""
+                    VALUES ('{name}', '{category}', {amount}, '{dt.date(day=payday,month=budget.prev.month,year=budget.prev.year).strftime("%d-%m-%Y")}');"""
                     )
                     cat.monthly_budget += amount
         if budget.curr.month == budget.prev.month and budget.curr.year == budget.prev.year:
@@ -522,9 +523,9 @@ class Recurring_payment:
             modify(self.payouts, budget.prev.day)
             modify(self.subs, budget.prev.day)
         else:
-            modify(self.bills, 1)
-            modify(self.payouts, 1)
-            modify(self.subs, 1)
+            modify(self.bills, 0)
+            modify(self.payouts, 0)
+            modify(self.subs, 0)
 
     def bills_table(self, app):
         bills_table = ttk.Treeview(
@@ -606,7 +607,7 @@ class Recurring_payment:
                 height=1,
                 width=17,
             )
-            add_button.place(x=90, y=110)
+            add_button.place(x=91, y=110)
 
             def del_menu():
                 clicked = StringVar()
@@ -649,10 +650,10 @@ class Recurring_payment:
             text="Modify bills",
             font=(None, 12),
             height=2,
-            width=15,
+            width=18,
             command=modify_bills,
         )
-        bills_button.place(x=1340, y=305)
+        bills_button.place(x=1530, y=305)
 
     def payouts_table(self, app):
         payouts_table = ttk.Treeview(
@@ -688,17 +689,17 @@ class Recurring_payment:
             canvas.place(x=230, y=-5)
 
             name = Entry(mod, width=20, font=(None, 10))
-            name.place(x=90, y=20)
+            name.place(x=115, y=20)
             name_label = Label(mod, text="Payout name:", font=("sans-serif", 11))
             name_label.place(x=3, y=20)
             amount = Entry(mod, width=20, font=(None, 10))
-            amount.place(x=90, y=50)
+            amount.place(x=115, y=50)
             amount_label = Label(mod, text="Amount:", font=("sans-serif", 11))
-            amount_label.place(x=10, y=50)
+            amount_label.place(x=37, y=50)
             payday = Entry(mod, width=20, font=(None, 10))
-            payday.place(x=90, y=80)
+            payday.place(x=115, y=80)
             payday_label = Label(mod, text="Payday:", font=("sans-serif", 11))
-            payday_label.place(x=17, y=80)
+            payday_label.place(x=44, y=80)
 
             def add_button():
                 new_name = name.get()
@@ -734,7 +735,7 @@ class Recurring_payment:
                 height=1,
                 width=17,
             )
-            add_button.place(x=90, y=110)
+            add_button.place(x=116, y=110)
 
             def del_menu():
                 clicked = StringVar()
@@ -777,10 +778,10 @@ class Recurring_payment:
             text="Modify payouts",
             font=(None, 12),
             height=2,
-            width=15,
+            width=18,
             command=modify_payouts,
         )
-        payouts_button.place(x=1340, y=625)
+        payouts_button.place(x=1530, y=625)
 
     def subs_table(self, app):
         subs_table = ttk.Treeview(
@@ -816,17 +817,17 @@ class Recurring_payment:
             canvas.place(x=230, y=-5)
 
             name = Entry(mod, width=20, font=(None, 10))
-            name.place(x=90, y=20)
+            name.place(x=150, y=20)
             name_label = Label(mod, text="Subscription name:", font=("sans-serif", 11))
             name_label.place(x=3, y=20)
             amount = Entry(mod, width=20, font=(None, 10))
-            amount.place(x=90, y=50)
+            amount.place(x=150, y=50)
             amount_label = Label(mod, text="Amount:", font=("sans-serif", 11))
-            amount_label.place(x=10, y=50)
+            amount_label.place(x=76, y=50)
             payday = Entry(mod, width=20, font=(None, 10))
-            payday.place(x=90, y=80)
+            payday.place(x=150, y=80)
             payday_label = Label(mod, text="Payday:", font=("sans-serif", 11))
-            payday_label.place(x=17, y=80)
+            payday_label.place(x=83, y=80)
 
             def add_button():
                 new_name = name.get()
@@ -862,7 +863,7 @@ class Recurring_payment:
                 height=1,
                 width=17,
             )
-            add_button.place(x=90, y=110)
+            add_button.place(x=151, y=110)
 
             def del_menu():
                 clicked = StringVar()
@@ -905,10 +906,10 @@ class Recurring_payment:
             text="Modify subscriptions",
             font=(None, 12),
             height=2,
-            width=15,
+            width=18,
             command=modify_subs,
         )
-        subs_button.place(x=1340, y=947)
+        subs_button.place(x=1530, y=947)
 
 
 class Transactions:
